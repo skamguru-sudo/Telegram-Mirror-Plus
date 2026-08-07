@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { Api } from "telegram";
+import { computeCheck } from "telegram/Password";
 import { getClient, isAuthenticated, getPhone, persistSession, clearSession } from "../lib/telegram";
 import {
   GetAuthStatusResponse,
@@ -91,7 +92,7 @@ router.post("/auth/sign-in-2fa", async (req, res): Promise<void> => {
     const pwdInfo = await client.invoke(new Api.account.GetPassword());
     await client.invoke(
       new Api.auth.CheckPassword({
-        password: await client.computeCheck(pwdInfo, parsed.data.password),
+        password: await computeCheck(pwdInfo, parsed.data.password),
       })
     );
 
