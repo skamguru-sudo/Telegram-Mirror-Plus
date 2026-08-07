@@ -92,7 +92,7 @@ export default function DashboardPage() {
                       <FormItem>
                         <FormLabel>Source Target</FormLabel>
                         <FormControl>
-                          <Input placeholder="@source_channel" {...field} className="font-mono" />
+                          <Input placeholder="-1001234567890 sau t.me/+xxx" {...field} className="font-mono" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -108,7 +108,7 @@ export default function DashboardPage() {
                       <FormItem>
                         <FormLabel>Destination Target</FormLabel>
                         <FormControl>
-                          <Input placeholder="@dest_channel" {...field} className="font-mono" />
+                          <Input placeholder="-1001234567890 sau t.me/+xxx" {...field} className="font-mono" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

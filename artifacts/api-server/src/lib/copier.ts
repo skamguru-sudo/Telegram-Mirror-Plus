@@ -7,6 +7,50 @@ import { logger } from "./logger";
 const activeJobs = new Map<string, { stop: boolean }>();
 
 /**
+ * Resolves a channel identifier to a Telegram entity.
+ * Supports:
+ *   - Numeric IDs: -1001234567890 or 1234567890
+ *   - Invite links: https://t.me/+xxxx or https://t.me/joinchat/xxxx
+ *   - Usernames: @channel or channel
+ */
+async function resolveChannel(client: TelegramClient, identifier: string): Promise<Api.TypeEntityLike> {
+  const trimmed = identifier.trim();
+
+  // Numeric ID (with or without -100 prefix)
+  if (/^-?\d+$/.test(trimmed)) {
+    return BigInt(trimmed);
+  }
+
+  // Invite link: t.me/+ or t.me/joinchat/
+  const inviteMatch = trimmed.match(/t\.me\/(?:\+|joinchat\/)([A-Za-z0-9_-]+)/);
+  if (inviteMatch) {
+    const hash = inviteMatch[1]!;
+    // Try to join (if already a member, Telegram returns the chat anyway)
+    try {
+      const result = await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+      if ("chats" in result && result.chats.length > 0) {
+        return result.chats[0]!;
+      }
+    } catch (err: unknown) {
+      // ALREADY_PARTICIPANT is fine — just resolve normally
+      const msg = err instanceof Error ? err.message : "";
+      if (!msg.includes("ALREADY_PARTICIPANT") && !msg.includes("USER_ALREADY_PARTICIPANT")) {
+        throw err;
+      }
+    }
+    // Already a member: check invite to get the chat
+    const info = await client.invoke(new Api.messages.CheckChatInvite({ hash }));
+    if (info instanceof Api.ChatInviteAlready || info instanceof Api.ChatInvitePeek) {
+      return info.chat;
+    }
+    throw new Error("Could not resolve invite link — chat info unavailable");
+  }
+
+  // Username (@channel or channel)
+  return trimmed;
+}
+
+/**
  * Removes spoiler entities from the entities list.
  */
 function removeSpoilerEntities(entities: Api.TypeMessageEntity[] | undefined): Api.TypeMessageEntity[] | undefined {
@@ -30,9 +74,9 @@ export async function runCopyJob(client: TelegramClient, jobId: string): Promise
 
     await db.update(copyJobsTable).set({ status: "running" }).where(eq(copyJobsTable.id, jobId));
 
-    // Resolve entities
-    const srcEntity = await client.getEntity(job.sourceChannel);
-    const dstEntity = await client.getEntity(job.destChannel);
+    // Resolve entities (supports IDs, invite links, usernames)
+    const srcEntity = await resolveChannel(client, job.sourceChannel);
+    const dstEntity = await resolveChannel(client, job.destChannel);
 
     // Collect all messages from source channel oldest-first
     const allMessages: Api.Message[] = [];
