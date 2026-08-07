@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "completed", "stopped", "failed"]);
+export const jobStatusEnum = pgEnum("job_status", ["pending", "scanning", "running", "completed", "stopped", "failed"]);
 
 export const tgSessionTable = pgTable("tg_session", {
   id: integer("id").primaryKey().default(1),

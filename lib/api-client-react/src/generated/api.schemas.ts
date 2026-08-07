@@ -50,6 +50,7 @@ export type JobStatus = typeof JobStatus[keyof typeof JobStatus];
 
 export const JobStatus = {
   pending: 'pending',
+  scanning: 'scanning',
   running: 'running',
   completed: 'completed',
   stopped: 'stopped',

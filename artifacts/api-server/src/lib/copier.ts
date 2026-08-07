@@ -72,16 +72,20 @@ export async function runCopyJob(client: TelegramClient, jobId: string): Promise
     const [job] = await db.select().from(copyJobsTable).where(eq(copyJobsTable.id, jobId));
     if (!job) throw new Error("Job not found");
 
-    await db.update(copyJobsTable).set({ status: "running" }).where(eq(copyJobsTable.id, jobId));
+    // Phase 1: SCANNING — collect all messages first, before copying anything
+    await db.update(copyJobsTable).set({ status: "scanning" }).where(eq(copyJobsTable.id, jobId));
 
     // Resolve entities (supports IDs, invite links, usernames)
     const srcEntity = await resolveChannel(client, job.sourceChannel);
     const dstEntity = await resolveChannel(client, job.destChannel);
 
-    // Collect all messages from source channel oldest-first
+    // Paginate through ALL messages from source, oldest-first.
+    // IMPORTANT: paginate using raw message count (includes MessageService /
+    // MessageEmpty), but only collect Api.Message instances for copying.
+    // Breaking on filtered count causes early exit when service messages are present.
     const allMessages: Api.Message[] = [];
     let offsetId = 0;
-    const limit = 100;
+    const batchSize = 100;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -91,34 +95,40 @@ export async function runCopyJob(client: TelegramClient, jobId: string): Promise
           offsetId,
           offsetDate: 0,
           addOffset: 0,
-          limit,
+          limit: batchSize,
           maxId: 0,
           minId: 0,
           hash: BigInt(0),
         })
       );
 
-      const msgs =
-        "messages" in history
-          ? (history.messages as Api.Message[]).filter((m) => m instanceof Api.Message)
-          : [];
+      if (!("messages" in history)) break;
 
-      if (msgs.length === 0) break;
+      const rawBatch = history.messages; // all types including service/empty
+      if (rawBatch.length === 0) break;
 
-      allMessages.push(...msgs);
-      offsetId = msgs[msgs.length - 1]!.id;
+      // Collect only regular messages for copying
+      for (const m of rawBatch) {
+        if (m instanceof Api.Message) allMessages.push(m);
+      }
 
-      if (msgs.length < limit) break;
-      // Small delay to avoid flood
-      await new Promise((r) => setTimeout(r, 500));
+      // Advance cursor using the LAST raw message ID (not filtered)
+      offsetId = rawBatch[rawBatch.length - 1]!.id;
+
+      // Stop when API returned fewer than requested — we've reached the beginning
+      if (rawBatch.length < batchSize) break;
+
+      // Small delay to respect flood limits
+      await new Promise((r) => setTimeout(r, 400));
     }
 
-    // Reverse so we go oldest-first
+    // Reverse so we process oldest → newest
     allMessages.reverse();
 
+    // Scan complete — record total and transition to copying phase
     await db
       .update(copyJobsTable)
-      .set({ totalPosts: allMessages.length })
+      .set({ status: "running", totalPosts: allMessages.length })
       .where(eq(copyJobsTable.id, jobId));
 
     logger.info({ jobId, total: allMessages.length }, "Starting copy");

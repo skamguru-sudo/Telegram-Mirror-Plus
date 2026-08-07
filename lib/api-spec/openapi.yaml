@@ -298,7 +298,7 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, running, completed, stopped, failed]
+          enum: [pending, scanning, running, completed, stopped, failed]
         totalPosts:
           type: number
         copiedPosts:
