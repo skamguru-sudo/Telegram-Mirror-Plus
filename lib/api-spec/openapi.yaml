@@ -3,20 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Telegram Channel Copier API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Telegram authentication
+  - name: jobs
+    description: Copy job management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +27,298 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/status:
+    get:
+      operationId: getAuthStatus
+      tags: [auth]
+      summary: Get current authentication status
+      responses:
+        "200":
+          description: Auth status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /auth/send-code:
+    post:
+      operationId: sendCode
+      tags: [auth]
+      summary: Send OTP code to phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendCodeInput"
+      responses:
+        "200":
+          description: Code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendCodeResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/sign-in:
+    post:
+      operationId: signIn
+      tags: [auth]
+      summary: Sign in with phone number and OTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInInput"
+      responses:
+        "200":
+          description: Signed in or 2FA required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/sign-in-2fa:
+    post:
+      operationId: signIn2fa
+      tags: [auth]
+      summary: Sign in with 2FA password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignIn2faInput"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout from Telegram
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List all copy jobs
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create and start a new copy job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get job status and progress
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}/stop:
+    post:
+      operationId: stopJob
+      tags: [jobs]
+      summary: Stop a running job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    AuthStatus:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+        phone:
+          type: ["string", "null"]
+
+    SendCodeInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Phone number with country code e.g. +40712345678
+
+    SendCodeResult:
+      type: object
+      required: [phoneCodeHash]
+      properties:
+        phoneCodeHash:
+          type: string
+
+    SignInInput:
+      type: object
+      required: [phone, phoneCodeHash, code]
+      properties:
+        phone:
+          type: string
+        phoneCodeHash:
+          type: string
+        code:
+          type: string
+
+    SignInResult:
+      type: object
+      required: [authenticated, requires2fa]
+      properties:
+        authenticated:
+          type: boolean
+        requires2fa:
+          type: boolean
+        phone:
+          type: ["string", "null"]
+
+    SignIn2faInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    Job:
+      type: object
+      required: [id, sourceChannel, destChannel, status, totalPosts, copiedPosts, failedPosts, createdAt]
+      properties:
+        id:
+          type: string
+        sourceChannel:
+          type: string
+        destChannel:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, stopped, failed]
+        totalPosts:
+          type: number
+        copiedPosts:
+          type: number
+        failedPosts:
+          type: number
+        createdAt:
+          type: string
+        finishedAt:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+
+    JobInput:
+      type: object
+      required: [sourceChannel, destChannel]
+      properties:
+        sourceChannel:
+          type: string
+          description: Source channel username or invite link
+        destChannel:
+          type: string
+          description: Destination channel username or invite link

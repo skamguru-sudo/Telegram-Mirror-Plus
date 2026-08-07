@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Telegram Channel Copier"
+description = "A web dashboard for copying all posts from one Telegram channel to another using MTProto API. Handles grouped media (albums), preserves captions, removes spoiler formatting, and posts without forwarding. Runs a one-time copy job from first to last post and stops automatically."
+version = "1.0.0"
+id = "artifacts/tg-copier"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25764
+
+[services.development]
+run = "pnpm --filter @workspace/tg-copier run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tg-copier", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/tg-copier/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25764"
+BASE_PATH = "/"

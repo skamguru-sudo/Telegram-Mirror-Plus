@@ -1,44 +1,49 @@
-# [Project name]
+# Telegram Channel Copier
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A web dashboard that copies all posts from one Telegram channel to another using MTProto API — preserving grouped albums and captions, removing spoiler formatting, posting without forwarding.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
+- `pnpm --filter @workspace/tg-copier run dev` — run the frontend (port assigned by artifact)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
+- DB: PostgreSQL + Drizzle ORM (tables: `tg_session`, `copy_jobs`)
+- Telegram: GramJS (`telegram` npm package) via MTProto
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React + Vite, TanStack Query, Tailwind CSS
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — API contract source of truth
+- `lib/db/src/schema/jobs.ts` — DB schema (tg_session, copy_jobs tables)
+- `artifacts/api-server/src/lib/telegram.ts` — GramJS client singleton + session persistence
+- `artifacts/api-server/src/lib/copier.ts` — channel copy logic (album grouping, spoiler removal)
+- `artifacts/api-server/src/routes/auth.ts` — Telegram auth routes (send-code, sign-in, 2FA, logout)
+- `artifacts/api-server/src/routes/jobs.ts` — copy job CRUD routes
+- `artifacts/tg-copier/src/` — React frontend dashboard
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- MTProto session string is stored in `tg_session` table (id=1 always), loaded on startup.
+- Copy jobs run as background async tasks in the Express process; `copier.ts` has a `Map<jobId, {stop}>` for cancellation.
+- Spoiler entities (`Api.MessageEntitySpoiler`) are filtered out before re-sending.
+- Albums (grouped media) are detected by `message.groupedId` and sent as a group via `client.sendFile([...])`.
+- `bufferutil` and `utf-8-validate` are in `onlyBuiltDependencies` in `pnpm-workspace.yaml` (needed by GramJS websocket transport).
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After any `lib/*` change, run `pnpm run typecheck:libs` before checking artifact packages.
+- `type: integer` in OpenAPI generates `zod.int()` which is Zod v4 syntax — use `type: number` instead since the Zod import in generated files targets v3.
+- `bufferutil` and `utf-8-validate` must be in `onlyBuiltDependencies` to compile native modules.
 
 ## Pointers
 
