@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "wouter";
 import { useState, useRef } from "react";
-import { useSendCode, useSignIn, useSignIn2fa } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSendCode, useSignIn, useSignIn2fa, getGetAuthStatusQueryKey } from "@workspace/api-client-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -30,6 +31,7 @@ export default function AuthPage() {
   const [step, setStep] = useState<Step>("phone");
   const [phoneCodeHash, setPhoneCodeHash] = useState("");
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   const phoneRef = useRef("");
 
@@ -83,6 +85,7 @@ export default function AuthPage() {
           if (res.requires2fa) {
             setStep("2fa");
           } else {
+            queryClient.invalidateQueries({ queryKey: getGetAuthStatusQueryKey() });
             toast({ title: "Authenticated successfully" });
             setLocation("/");
           }
@@ -99,6 +102,7 @@ export default function AuthPage() {
       { data: { password: values.password } },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetAuthStatusQueryKey() });
           toast({ title: "Authenticated successfully" });
           setLocation("/");
         },
